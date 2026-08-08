@@ -8,52 +8,53 @@
 <style>
   * { box-sizing: border-box; }
   html, body {
-    margin: 0; padding: 0; background: #1c2533; color: #ffffff;
+    margin: 0; padding: 0; background: linear-gradient(165deg, #e2eef1 0%, #eaf3ec 100%); color: #17355c;
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
     height: 100%;
   }
   #wrap { max-width: 480px; margin: 0 auto; padding: 16px; }
-  h1 { font-size: 15px; text-align: center; margin: 0 0 12px; color: #2b9fd5; }
+  h1 { font-size: 15px; text-align: center; margin: 0 0 12px; color: #17355c; font-weight: 800; }
   .video-wrap {
-    position: relative; width: 100%; border-radius: 12px; overflow: hidden;
-    background: #000; border: 2px solid #2b9fd5;
+    position: relative; width: 100%; border-radius: 18px; overflow: hidden;
+    background: #000; box-shadow: 0 12px 32px rgba(23,53,92,0.15);
   }
   video { width: 100%; display: block; max-height: 70vh; object-fit: cover; }
-  .frame { position: absolute; inset: 12%; border: 2px solid #2b9fd5; border-radius: 10px; pointer-events: none; }
-  .hint { text-align: center; font-size: 12px; color: #9fb0c3; margin: 12px 0; }
-  .status { text-align: center; font-size: 13px; font-weight: 700; padding: 10px; border-radius: 10px; margin-top: 10px; }
-  .status.ok { background: rgba(34,197,94,0.15); color: #86efac; }
-  .status.err { background: rgba(239,68,68,0.15); color: #fca5a5; }
-  .status.pending { background: rgba(43,159,213,0.15); color: #2b9fd5; }
+  .frame { position: absolute; inset: 12%; border: 2px solid #2f7d4f; border-radius: 12px; pointer-events: none; }
+  .hint { text-align: center; font-size: 12px; color: #6b7280; margin: 12px 0; }
+  .status { text-align: center; font-size: 13px; font-weight: 700; padding: 10px; border-radius: 12px; margin-top: 10px; }
+  .status.ok { background: #f0fdf4; color: #15803d; }
+  .status.err { background: #fef2f2; color: #b91c1c; }
+  .status.pending { background: #eef5f2; color: #2f7d4f; }
   button {
-    display: block; width: 100%; padding: 12px; margin-top: 12px;
-    background: #2b9fd5; color: #fff; border: none; border-radius: 10px;
-    font-weight: 700; font-size: 14px;
+    display: block; width: 100%; padding: 14px; margin-top: 12px;
+    background: #17355c; color: #fff; border: none; border-radius: 999px;
+    font-weight: 700; font-size: 14px; box-shadow: 0 8px 20px rgba(23,53,92,0.2);
   }
   .hidden { display: none !important; }
 
   .att-card {
     margin-top: 14px; text-align: center;
-    background: #212d3b;
-    border: 2px solid #2b9fd5; border-radius: 12px; padding: 16px;
-    color: #ffffff;
+    background: #ffffff;
+    border-top: 3px solid #2f7d4f; border-radius: 18px; padding: 18px;
+    color: #17355c;
+    box-shadow: 0 3px 12px rgba(23,53,92,0.08);
   }
   .att-card img.photo, .att-card .photo-placeholder {
     width: 84px; height: 84px; border-radius: 50%; object-fit: cover;
-    background: rgba(43,159,213,0.15); color: #2b9fd5; margin: 0 auto 10px;
-    box-shadow: 0 0 0 2px #2b9fd5;
+    background: rgba(47,125,79,0.12); color: #2f7d4f; margin: 0 auto 10px;
+    box-shadow: 0 0 0 2px #2f7d4f;
     display: flex; align-items: center; justify-content: center;
     font-size: 26px; font-weight: 700;
   }
-  .att-card .name { font-size: 17px; font-weight: 800; color: #ffffff; }
-  .att-card .idrole { font-size: 12px; color: #9fb0c3; margin: 2px 0 8px; }
+  .att-card .name { font-size: 17px; font-weight: 800; color: #17355c; }
+  .att-card .idrole { font-size: 12px; color: #6b7280; margin: 2px 0 8px; }
   .att-card .result-status {
     display: inline-block; padding: 6px 16px; border-radius: 999px;
     font-size: 13px; font-weight: 700;
   }
-  .att-card .result-status.recorded { background: rgba(34,197,94,0.15); color: #86efac; border: 1px solid rgba(34,197,94,0.35); }
-  .att-card .result-status.duplicate { background: rgba(43,159,213,0.15); color: #2b9fd5; border: 1px solid #2b9fd5; }
-  .att-card .result-status.error { background: rgba(239,68,68,0.15); color: #fca5a5; border: 1px solid rgba(239,68,68,0.35); }
+  .att-card .result-status.recorded { background: #f0fdf4; color: #15803d; border: 1px solid #bbf7d0; }
+  .att-card .result-status.duplicate { background: #fff7ed; color: #c2660a; border: 1px solid #fed7aa; }
+  .att-card .result-status.error { background: #fef2f2; color: #b91c1c; border: 1px solid #fecaca; }
 </style>
 </head>
 <body>

@@ -24,12 +24,36 @@
   .status { text-align: center; font-size: 13px; font-weight: 700; padding: 10px; border-radius: 10px; margin-top: 10px; }
   .status.ok { background: #14532d; color: #bbf7d0; }
   .status.err { background: #7f1d1d; color: #fecaca; }
+  .status.pending { background: #1e3a8a; color: #dbeafe; }
   button {
     display: block; width: 100%; padding: 12px; margin-top: 12px;
     background: #1e3a8a; color: #fff; border: none; border-radius: 10px;
     font-weight: 700; font-size: 14px;
   }
   .hidden { display: none !important; }
+
+  .att-card {
+    margin-top: 14px; text-align: center;
+    background: linear-gradient(180deg, #f7e7b6 0%, #ffffff 55%);
+    border: 2px solid #d4a017; border-radius: 12px; padding: 16px;
+    color: #1f2430;
+  }
+  .att-card img.photo, .att-card .photo-placeholder {
+    width: 84px; height: 84px; border-radius: 50%; object-fit: cover;
+    background: #1e3a8a; color: #fff; margin: 0 auto 10px;
+    box-shadow: 0 0 0 2px #d4a017;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 26px; font-weight: 700;
+  }
+  .att-card .name { font-size: 17px; font-weight: 800; color: #1e3a8a; }
+  .att-card .idrole { font-size: 12px; color: #6b7280; margin: 2px 0 8px; }
+  .att-card .result-status {
+    display: inline-block; padding: 6px 16px; border-radius: 999px;
+    font-size: 13px; font-weight: 700;
+  }
+  .att-card .result-status.recorded { background: #f0fdf4; color: #16a34a; border: 1px solid #bbf7d0; }
+  .att-card .result-status.duplicate { background: #fffbeb; color: #a9790f; border: 1px solid #d4a017; }
+  .att-card .result-status.error { background: #fef2f2; color: #dc2626; border: 1px solid #fecaca; }
 </style>
 </head>
 <body>
@@ -40,8 +64,9 @@
       <div class="frame"></div>
     </div>
     <canvas id="canvas" class="hidden"></canvas>
-    <div class="hint">Point the camera at a member's QR code. Keep this window open to keep scanning.</div>
+    <div class="hint">Point the camera at a member's QR code. The scanned member's info and attendance status will appear below.</div>
     <div id="statusMsg" class="status hidden"></div>
+    <div id="attCard"></div>
     <button id="startBtn">Start Camera</button>
   </div>
 
@@ -53,26 +78,82 @@
   var canvas = document.getElementById('canvas');
   var ctx = canvas.getContext('2d', { willReadFrequently: true });
   var statusMsg = document.getElementById('statusMsg');
+  var attCard = document.getElementById('attCard');
   var startBtn = document.getElementById('startBtn');
 
   var lastCode = null;
   var lastCodeTime = 0;
   var lastFrameTime = 0;
   var active = false;
+  var awaitingResult = false;
+  var awaitTimeoutId = null;
 
-  function showStatus(text, ok) {
+  function showStatus(text, kind) {
     statusMsg.textContent = text;
-    statusMsg.className = 'status ' + (ok ? 'ok' : 'err');
+    statusMsg.className = 'status ' + kind; // 'ok' | 'err' | 'pending'
     statusMsg.classList.remove('hidden');
   }
 
+  function getInitials(name) {
+    var parts = (name || '').trim().split(/\s+/).filter(Boolean);
+    if (!parts.length) return '?';
+    return (parts[0][0] + (parts[1] ? parts[1][0] : '')).toUpperCase();
+  }
+
+  function driveThumbnailUrl(driveUrl) {
+    if (!driveUrl) return '';
+    var match = String(driveUrl).match(/[-\w]{25,}/);
+    if (!match) return '';
+    return 'https://drive.google.com/thumbnail?id=' + match[0] + '&sz=w200';
+  }
+
+  function escapeHtml(str) {
+    return String(str || '').replace(/[&<>"']/g, function (c) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+    });
+  }
+
+  function renderResult(res) {
+    hide(statusMsg);
+    if (!res || !res.success) {
+      attCard.innerHTML = '<div class="att-card"><span class="result-status error">' +
+        escapeHtml((res && res.message) || 'Invalid QR code.') + '</span></div>';
+      return;
+    }
+
+    var m = res.member || {};
+    var thumb = driveThumbnailUrl(m.image);
+    var photoHtml = thumb
+      ? '<img class="photo" src="' + thumb + '" onerror="this.outerHTML=\'<div class=&quot;photo-placeholder&quot;>' + getInitials(m.fullName) + '</div>\'">'
+      : '<div class="photo-placeholder">' + getInitials(m.fullName) + '</div>';
+
+    var statusClass = res.status === 'recorded' ? 'recorded' : 'duplicate';
+
+    attCard.innerHTML =
+      '<div class="att-card">' +
+        photoHtml +
+        '<div class="name">' + escapeHtml(m.fullName || '(no name)') + '</div>' +
+        '<div class="idrole">ID: ' + escapeHtml(m.idNo || '') + (m.role ? ' • ' + escapeHtml(m.role) : '') + '</div>' +
+        '<span class="result-status ' + statusClass + '">' + escapeHtml(res.message) + '</span>' +
+      '</div>';
+  }
+
+  function hide(el) { el.classList.add('hidden'); }
+
+  window.addEventListener('message', function (event) {
+    if (!event.data || event.data.type !== 'aog-attendance-result') return;
+    awaitingResult = false;
+    if (awaitTimeoutId) { clearTimeout(awaitTimeoutId); awaitTimeoutId = null; }
+    renderResult(event.data.result);
+  });
+
   function startCamera() {
     if (typeof jsQR === 'undefined') {
-      showStatus('QR scanning library failed to load. Check your internet connection and reload this page.', false);
+      showStatus('QR scanning library failed to load. Check your internet connection and reload this page.', 'err');
       return;
     }
     if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-      showStatus('Camera not supported on this browser.', false);
+      showStatus('Camera not supported on this browser.', 'err');
       return;
     }
     navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: 'environment' } } })
@@ -84,11 +165,11 @@
       .then(function () {
         active = true;
         startBtn.classList.add('hidden');
-        showStatus('Scanning...', true);
+        showStatus('Scanning...', 'pending');
         requestAnimationFrame(scanLoop);
       })
       .catch(function (err) {
-        showStatus('Camera error: ' + (err && (err.message || err.name) || 'unknown'), false);
+        showStatus('Camera error: ' + (err && (err.message || err.name) || 'unknown'), 'err');
       });
   }
 
@@ -100,6 +181,7 @@
     if (now - lastFrameTime < 200) return;
     lastFrameTime = now;
 
+    if (awaitingResult) return; // don't fire a new scan while one is being looked up
     if (video.readyState !== video.HAVE_ENOUGH_DATA || !video.videoWidth) return;
 
     canvas.width = video.videoWidth;
@@ -111,29 +193,32 @@
       imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
       code = jsQR(imageData.data, imageData.width, imageData.height);
     } catch (e) {
-      showStatus('Scan error: ' + e.message, false);
+      showStatus('Scan error: ' + e.message, 'err');
       return;
     }
 
-    if (!code || !code.data) {
-      if (statusMsg.textContent !== 'Scanning...' && statusMsg.className.indexOf('ok') !== -1) {
-        // leave the last successful scan message visible briefly instead of flickering
-      }
-      return;
-    }
-
+    if (!code || !code.data) return;
     if (code.data === lastCode && (now - lastCodeTime) < 3000) return;
     lastCode = code.data;
     lastCodeTime = now;
 
-    showStatus('Scanned: ' + code.data, true);
-
-    if (window.opener) {
-      // Sends only the scanned ID string back to the AOG Daet app.
-      window.opener.postMessage({ type: 'aog-qr-scan', code: code.data }, '*');
-    } else {
-      showStatus('Scanned ' + code.data + ' but no opener window found - open this page via the app\'s "Open Camera Scanner" button.', false);
+    if (!window.opener) {
+      showStatus('No connection to the AOG Daet app - open this page using its "Open Camera Scanner" button.', 'err');
+      return;
     }
+
+    awaitingResult = true;
+    attCard.innerHTML = '';
+    showStatus('Checking attendance...', 'pending');
+
+    // Sends only the scanned ID string back to the AOG Daet app, which looks
+    // up the member and posts the full result back to this same window.
+    window.opener.postMessage({ type: 'aog-qr-scan', code: code.data }, '*');
+
+    awaitTimeoutId = setTimeout(function () {
+      awaitingResult = false;
+      showStatus('No response from the app - check that its tab is still open, then try scanning again.', 'err');
+    }, 8000);
   }
 
   startBtn.addEventListener('click', startCamera);

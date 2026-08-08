@@ -8,52 +8,52 @@
 <style>
   * { box-sizing: border-box; }
   html, body {
-    margin: 0; padding: 0; background: #0f172a; color: #fff;
+    margin: 0; padding: 0; background: #1c2533; color: #ffffff;
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
     height: 100%;
   }
   #wrap { max-width: 480px; margin: 0 auto; padding: 16px; }
-  h1 { font-size: 15px; text-align: center; margin: 0 0 12px; color: #f7e7b6; }
+  h1 { font-size: 15px; text-align: center; margin: 0 0 12px; color: #2b9fd5; }
   .video-wrap {
     position: relative; width: 100%; border-radius: 12px; overflow: hidden;
-    background: #000; border: 2px solid #d4a017;
+    background: #000; border: 2px solid #2b9fd5;
   }
   video { width: 100%; display: block; max-height: 70vh; object-fit: cover; }
-  .frame { position: absolute; inset: 12%; border: 2px solid #d4a017; border-radius: 10px; pointer-events: none; }
-  .hint { text-align: center; font-size: 12px; color: #cbd5e1; margin: 12px 0; }
+  .frame { position: absolute; inset: 12%; border: 2px solid #2b9fd5; border-radius: 10px; pointer-events: none; }
+  .hint { text-align: center; font-size: 12px; color: #9fb0c3; margin: 12px 0; }
   .status { text-align: center; font-size: 13px; font-weight: 700; padding: 10px; border-radius: 10px; margin-top: 10px; }
-  .status.ok { background: #14532d; color: #bbf7d0; }
-  .status.err { background: #7f1d1d; color: #fecaca; }
-  .status.pending { background: #1e3a8a; color: #dbeafe; }
+  .status.ok { background: rgba(34,197,94,0.15); color: #86efac; }
+  .status.err { background: rgba(239,68,68,0.15); color: #fca5a5; }
+  .status.pending { background: rgba(43,159,213,0.15); color: #2b9fd5; }
   button {
     display: block; width: 100%; padding: 12px; margin-top: 12px;
-    background: #1e3a8a; color: #fff; border: none; border-radius: 10px;
+    background: #2b9fd5; color: #fff; border: none; border-radius: 10px;
     font-weight: 700; font-size: 14px;
   }
   .hidden { display: none !important; }
 
   .att-card {
     margin-top: 14px; text-align: center;
-    background: linear-gradient(180deg, #f7e7b6 0%, #ffffff 55%);
-    border: 2px solid #d4a017; border-radius: 12px; padding: 16px;
-    color: #1f2430;
+    background: #212d3b;
+    border: 2px solid #2b9fd5; border-radius: 12px; padding: 16px;
+    color: #ffffff;
   }
   .att-card img.photo, .att-card .photo-placeholder {
     width: 84px; height: 84px; border-radius: 50%; object-fit: cover;
-    background: #1e3a8a; color: #fff; margin: 0 auto 10px;
-    box-shadow: 0 0 0 2px #d4a017;
+    background: rgba(43,159,213,0.15); color: #2b9fd5; margin: 0 auto 10px;
+    box-shadow: 0 0 0 2px #2b9fd5;
     display: flex; align-items: center; justify-content: center;
     font-size: 26px; font-weight: 700;
   }
-  .att-card .name { font-size: 17px; font-weight: 800; color: #1e3a8a; }
-  .att-card .idrole { font-size: 12px; color: #6b7280; margin: 2px 0 8px; }
+  .att-card .name { font-size: 17px; font-weight: 800; color: #ffffff; }
+  .att-card .idrole { font-size: 12px; color: #9fb0c3; margin: 2px 0 8px; }
   .att-card .result-status {
     display: inline-block; padding: 6px 16px; border-radius: 999px;
     font-size: 13px; font-weight: 700;
   }
-  .att-card .result-status.recorded { background: #f0fdf4; color: #16a34a; border: 1px solid #bbf7d0; }
-  .att-card .result-status.duplicate { background: #fffbeb; color: #a9790f; border: 1px solid #d4a017; }
-  .att-card .result-status.error { background: #fef2f2; color: #dc2626; border: 1px solid #fecaca; }
+  .att-card .result-status.recorded { background: rgba(34,197,94,0.15); color: #86efac; border: 1px solid rgba(34,197,94,0.35); }
+  .att-card .result-status.duplicate { background: rgba(43,159,213,0.15); color: #2b9fd5; border: 1px solid #2b9fd5; }
+  .att-card .result-status.error { background: rgba(239,68,68,0.15); color: #fca5a5; border: 1px solid rgba(239,68,68,0.35); }
 </style>
 </head>
 <body>
@@ -81,11 +81,10 @@
   var attCard = document.getElementById('attCard');
   var startBtn = document.getElementById('startBtn');
 
-  var lastCode = null;
-  var lastCodeTime = 0;
+  var SCAN_COOLDOWN_MS = 1500; // required debounce between processed scans
+  var lastScanTime = 0;
   var lastFrameTime = 0;
   var active = false;
-  var awaitingResult = false;
   var awaitTimeoutId = null;
 
   function showStatus(text, kind) {
@@ -93,6 +92,8 @@
     statusMsg.className = 'status ' + kind; // 'ok' | 'err' | 'pending'
     statusMsg.classList.remove('hidden');
   }
+
+  function hide(el) { el.classList.add('hidden'); }
 
   function getInitials(name) {
     var parts = (name || '').trim().split(/\s+/).filter(Boolean);
@@ -113,6 +114,9 @@
     });
   }
 
+  // Renders the scanned member's card. This replaces whatever was shown
+  // before, but only when a NEW result actually arrives - the previous
+  // member's info stays on screen the whole time in between.
   function renderResult(res) {
     hide(statusMsg);
     if (!res || !res.success) {
@@ -138,11 +142,8 @@
       '</div>';
   }
 
-  function hide(el) { el.classList.add('hidden'); }
-
   window.addEventListener('message', function (event) {
     if (!event.data || event.data.type !== 'aog-attendance-result') return;
-    awaitingResult = false;
     if (awaitTimeoutId) { clearTimeout(awaitTimeoutId); awaitTimeoutId = null; }
     renderResult(event.data.result);
   });
@@ -173,15 +174,19 @@
       });
   }
 
+  // Scanner stays open continuously - it is never stopped or restarted
+  // between scans. Only the decode/send step is paused for SCAN_COOLDOWN_MS
+  // after each successful scan, to prevent duplicate/accidental rapid scans.
   function scanLoop() {
     if (!active) return;
     requestAnimationFrame(scanLoop);
 
     var now = Date.now();
-    if (now - lastFrameTime < 200) return;
+    if (now - lastFrameTime < 200) return; // ~5fps decode, keeps it lightweight
     lastFrameTime = now;
 
-    if (awaitingResult) return; // don't fire a new scan while one is being looked up
+    if (now - lastScanTime < SCAN_COOLDOWN_MS) return; // 1.5s debounce window
+
     if (video.readyState !== video.HAVE_ENOUGH_DATA || !video.videoWidth) return;
 
     canvas.width = video.videoWidth;
@@ -198,25 +203,22 @@
     }
 
     if (!code || !code.data) return;
-    if (code.data === lastCode && (now - lastCodeTime) < 3000) return;
-    lastCode = code.data;
-    lastCodeTime = now;
+
+    lastScanTime = now;
 
     if (!window.opener) {
       showStatus('No connection to the AOG Daet app - open this page using its "Open Camera Scanner" button.', 'err');
       return;
     }
 
-    awaitingResult = true;
-    attCard.innerHTML = '';
     showStatus('Checking attendance...', 'pending');
-
     // Sends only the scanned ID string back to the AOG Daet app, which looks
     // up the member and posts the full result back to this same window.
+    // The previously displayed member card is left untouched until then.
     window.opener.postMessage({ type: 'aog-qr-scan', code: code.data }, '*');
 
+    if (awaitTimeoutId) clearTimeout(awaitTimeoutId);
     awaitTimeoutId = setTimeout(function () {
-      awaitingResult = false;
       showStatus('No response from the app - check that its tab is still open, then try scanning again.', 'err');
     }, 8000);
   }
